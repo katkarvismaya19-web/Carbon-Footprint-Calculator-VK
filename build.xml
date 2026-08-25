@@ -4,18 +4,39 @@
 
     <!-- Project directories -->
     <property name="src.dir"       value="src/main/java"/>
+    <property name="test.dir"      value="src/test/java"/>
     <property name="web.dir"       value="src/main/webapp"/>
     <property name="build.dir"     value="build"/>
     <property name="classes.dir"   value="${build.dir}/classes"/>
+    <property name="test.classes"  value="${build.dir}/test-classes"/>
+    <property name="reports.dir"   value="${build.dir}/test-reports"/>
     <property name="war.dir"       value="${build.dir}/war"/>
     <property name="lib.dir"       value="lib"/>
+    <property name="test.lib.dir"  value="lib/test"/>
     <property name="war.file"      value="${build.dir}/carbon-footprint-calculator.war"/>
 
     <!-- Tomcat libraries -->
     <property name="tomcat.home" value="C:/apache-tomcat-11.0.24"/>
 
-    <!-- Libraries -->
+    <!-- Main application libraries -->
     <path id="compile.classpath">
+        <fileset dir="${lib.dir}">
+            <include name="*.jar"/>
+        </fileset>
+
+        <fileset dir="${tomcat.home}/lib">
+            <include name="*.jar"/>
+        </fileset>
+    </path>
+
+    <!-- Test libraries -->
+    <path id="test.classpath">
+        <pathelement location="${classes.dir}"/>
+
+        <fileset dir="${test.lib.dir}">
+            <include name="*.jar"/>
+        </fileset>
+
         <fileset dir="${lib.dir}">
             <include name="*.jar"/>
         </fileset>
@@ -35,6 +56,8 @@
     <target name="init">
         <mkdir dir="${build.dir}"/>
         <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${test.classes}"/>
+        <mkdir dir="${reports.dir}"/>
         <mkdir dir="${war.dir}"/>
     </target>
 
@@ -55,8 +78,58 @@
 
     </target>
 
+    <!-- Compile tests -->
+    <target name="compile-test" depends="compile">
+
+        <javac
+            srcdir="${test.dir}"
+            destdir="${test.classes}"
+            includeantruntime="false"
+            source="21"
+            target="21"
+            encoding="UTF-8">
+
+            <classpath refid="test.classpath"/>
+
+        </javac>
+
+    </target>
+
+    <!-- Run automated tests -->
+    <target name="test" depends="compile-test">
+
+        <java
+            classname="org.junit.platform.console.ConsoleLauncher"
+            fork="true"
+            failonerror="true">
+
+            <classpath>
+                <pathelement location="${classes.dir}"/>
+                <pathelement location="${test.classes}"/>
+
+                <fileset dir="${test.lib.dir}">
+                    <include name="*.jar"/>
+                </fileset>
+
+                <fileset dir="${lib.dir}">
+                    <include name="*.jar"/>
+                </fileset>
+
+                <fileset dir="${tomcat.home}/lib">
+                    <include name="*.jar"/>
+                </fileset>
+            </classpath>
+
+            <arg value="--scan-classpath"/>
+            <arg value="--reports-dir"/>
+            <arg path="${reports.dir}"/>
+
+        </java>
+
+    </target>
+
     <!-- Copy web application -->
-    <target name="copy-webapp" depends="compile">
+    <target name="copy-webapp" depends="test">
 
         <copy todir="${war.dir}">
             <fileset dir="${web.dir}"/>
@@ -79,17 +152,17 @@
     </target>
 
     <!-- Build WAR -->
-  <target name="war" depends="copy-webapp">
+    <target name="war" depends="copy-webapp">
 
-    <war
-        destfile="${war.file}">
+        <war
+            destfile="${war.file}">
 
-        <fileset dir="${war.dir}"/>
+            <fileset dir="${war.dir}"/>
 
-    </war>
+        </war>
 
-    <echo message="WAR created successfully: ${war.file}"/>
+        <echo message="WAR created successfully: ${war.file}"/>
 
-</target>
+    </target>
 
 </project>
