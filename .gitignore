@@ -1,0 +1,9 @@
+﻿# Ant build output
+build/
+
+# IDE files
+.vscode/
+.idea/
+
+# Java compiled files
+*.class
