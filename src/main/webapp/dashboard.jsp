@@ -22,7 +22,7 @@
 
         <div>
 
-            <h1>🌱 Carbon Footprint Dashboard</h1>
+            <h1>🌱 Carbon Footprint Dashboard - CI/CD</h1>
 
             <p>
                 Welcome,
