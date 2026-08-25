@@ -2,24 +2,41 @@
 
 <project name="carbon-footprint-calculator" default="war" basedir=".">
 
-    <!-- Project directories -->
+    <!-- ========================================================= -->
+    <!-- PROJECT DIRECTORIES                                      -->
+    <!-- ========================================================= -->
+
     <property name="src.dir"       value="src/main/java"/>
     <property name="test.dir"      value="src/test/java"/>
     <property name="web.dir"       value="src/main/webapp"/>
+
     <property name="build.dir"     value="build"/>
     <property name="classes.dir"   value="${build.dir}/classes"/>
     <property name="test.classes"  value="${build.dir}/test-classes"/>
     <property name="reports.dir"   value="${build.dir}/test-reports"/>
+    <property name="coverage.dir"  value="${build.dir}/coverage"/>
     <property name="war.dir"       value="${build.dir}/war"/>
+
     <property name="lib.dir"       value="lib"/>
     <property name="test.lib.dir"  value="lib/test"/>
-    <property name="war.file"      value="${build.dir}/carbon-footprint-calculator.war"/>
+    <property name="quality.lib.dir" value="lib/quality"/>
 
-    <!-- Tomcat libraries -->
-    <property name="tomcat.home" value="C:/apache-tomcat-11.0.24"/>
+    <property name="war.file"
+              value="${build.dir}/carbon-footprint-calculator.war"/>
 
-    <!-- Main application libraries -->
+    <!-- ========================================================= -->
+    <!-- TOMCAT                                                    -->
+    <!-- ========================================================= -->
+
+    <property name="tomcat.home"
+              value="C:/apache-tomcat-11.0.24"/>
+
+    <!-- ========================================================= -->
+    <!-- MAIN COMPILE CLASSPATH                                    -->
+    <!-- ========================================================= -->
+
     <path id="compile.classpath">
+
         <fileset dir="${lib.dir}">
             <include name="*.jar"/>
         </fileset>
@@ -27,10 +44,15 @@
         <fileset dir="${tomcat.home}/lib">
             <include name="*.jar"/>
         </fileset>
+
     </path>
 
-    <!-- Test libraries -->
+    <!-- ========================================================= -->
+    <!-- TEST CLASSPATH                                            -->
+    <!-- ========================================================= -->
+
     <path id="test.classpath">
+
         <pathelement location="${classes.dir}"/>
 
         <fileset dir="${test.lib.dir}">
@@ -44,24 +66,40 @@
         <fileset dir="${tomcat.home}/lib">
             <include name="*.jar"/>
         </fileset>
+
     </path>
 
-    <!-- Clean -->
+    <!-- ========================================================= -->
+    <!-- CLEAN                                                      -->
+    <!-- ========================================================= -->
+
     <target name="clean">
+
         <delete dir="${build.dir}"/>
+
         <mkdir dir="${build.dir}"/>
+
     </target>
 
-    <!-- Create directories -->
+    <!-- ========================================================= -->
+    <!-- INITIALIZE DIRECTORIES                                    -->
+    <!-- ========================================================= -->
+
     <target name="init">
+
         <mkdir dir="${build.dir}"/>
         <mkdir dir="${classes.dir}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${reports.dir}"/>
+        <mkdir dir="${coverage.dir}"/>
         <mkdir dir="${war.dir}"/>
+
     </target>
 
-    <!-- Compile Java -->
+    <!-- ========================================================= -->
+    <!-- COMPILE APPLICATION                                       -->
+    <!-- ========================================================= -->
+
     <target name="compile" depends="init">
 
         <javac
@@ -78,7 +116,10 @@
 
     </target>
 
-    <!-- Compile tests -->
+    <!-- ========================================================= -->
+    <!-- COMPILE JUNIT TESTS                                       -->
+    <!-- ========================================================= -->
+
     <target name="compile-test" depends="compile">
 
         <javac
@@ -95,7 +136,10 @@
 
     </target>
 
-    <!-- Run automated tests -->
+    <!-- ========================================================= -->
+    <!-- RUN JUNIT TESTS + JACOCO COVERAGE                        -->
+    <!-- ========================================================= -->
+
     <target name="test" depends="compile-test">
 
         <java
@@ -103,7 +147,12 @@
             fork="true"
             failonerror="true">
 
+            <!-- JaCoCo Java Agent -->
+            <jvmarg
+                value="-javaagent:${quality.lib.dir}/jacocoagent.jar=destfile=${coverage.dir}/jacoco.exec"/>
+
             <classpath>
+
                 <pathelement location="${classes.dir}"/>
                 <pathelement location="${test.classes}"/>
 
@@ -118,9 +167,11 @@
                 <fileset dir="${tomcat.home}/lib">
                     <include name="*.jar"/>
                 </fileset>
+
             </classpath>
 
             <arg value="--scan-classpath"/>
+
             <arg value="--reports-dir"/>
             <arg path="${reports.dir}"/>
 
@@ -128,30 +179,88 @@
 
     </target>
 
-    <!-- Copy web application -->
-    <target name="copy-webapp" depends="test">
+    <!-- ========================================================= -->
+    <!-- GENERATE JACOCO HTML COVERAGE REPORT                     -->
+    <!-- ========================================================= -->
+
+    <target name="coverage" depends="test">
+
+        <echo message="Generating JaCoCo coverage report..."/>
+
+        <java
+            classname="org.jacoco.cli.internal.Main"
+            fork="true"
+            failonerror="true">
+
+            <classpath>
+
+                <pathelement
+                    location="${quality.lib.dir}/jacococli.jar"/>
+
+            </classpath>
+
+            <arg value="report"/>
+
+            <arg value="${coverage.dir}/jacoco.exec"/>
+
+            <arg value="--classfiles"/>
+            <arg path="${classes.dir}"/>
+
+            <arg value="--sourcefiles"/>
+            <arg path="${src.dir}"/>
+
+            <arg value="--html"/>
+            <arg path="${coverage.dir}/html"/>
+
+            <arg value="--xml"/>
+            <arg path="${coverage.dir}/jacoco.xml"/>
+
+        </java>
+
+        <echo message="JaCoCo coverage report generated successfully."/>
+
+    </target>
+
+    <!-- ========================================================= -->
+    <!-- COPY WEB APPLICATION                                      -->
+    <!-- ========================================================= -->
+
+    <target name="copy-webapp" depends="coverage">
 
         <copy todir="${war.dir}">
+
             <fileset dir="${web.dir}"/>
+
         </copy>
+
+        <!-- Create WEB-INF/lib -->
 
         <mkdir dir="${war.dir}/WEB-INF/lib"/>
 
-        <!-- Copy MariaDB JDBC driver -->
+        <!-- Copy MariaDB JDBC Driver -->
+
         <copy todir="${war.dir}/WEB-INF/lib">
+
             <fileset dir="${lib.dir}">
                 <include name="*.jar"/>
             </fileset>
+
         </copy>
 
-        <!-- Copy compiled classes -->
+        <!-- Copy compiled application classes -->
+
         <copy todir="${war.dir}/WEB-INF/classes">
+
             <fileset dir="${classes.dir}"/>
+
         </copy>
 
     </target>
 
-    <!-- Build WAR -->
+    <!-- ========================================================= -->
+    <!-- BUILD WAR                                                 -->
+    <!-- ========================================================= -->
+
     <target name="war" depends="copy-webapp">
 
         <war
