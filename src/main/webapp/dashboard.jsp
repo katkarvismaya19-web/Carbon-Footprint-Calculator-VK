@@ -22,7 +22,8 @@
 
         <div>
 
-            <h1>🌱 Carbon Footprint Dashboard - CI/CD</h1>
+           <h1>🌱 Carbon Footprint Dashboard - CI/CD v2</h1>
+<p>🚀 Automatic CI/CD Deployment Test - Build 16</p>
 
             <p>
                 Welcome,
