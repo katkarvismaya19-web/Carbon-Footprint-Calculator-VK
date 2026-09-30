@@ -1,0 +1,57 @@
+﻿---
+- name: Configure Carbon Footprint Calculator environment
+  hosts: local
+  connection: local
+  gather_facts: yes
+
+  vars:
+    project_root: "/mnt/c/DevOps-Pipeline/carbon-footprint-calculator"
+    required_port: 8081
+
+  tasks:
+
+    - name: Verify project root exists
+      ansible.builtin.stat:
+        path: "{{ project_root }}"
+      register: project_directory
+
+    - name: Check Docker installation
+      ansible.builtin.command:
+        cmd: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Check Java installation
+      ansible.builtin.command:
+        cmd: java -version
+      register: java_version
+      changed_when: false
+      failed_when: false
+
+    - name: Check Windows Tomcat directory
+      ansible.builtin.command:
+        cmd: powershell.exe -NoProfile -Command "if (Test-Path 'C:\apache-tomcat-11.0.24') { Write-Output 'Tomcat directory exists' } else { exit 1 }"
+      register: tomcat_directory
+      changed_when: false
+
+    - name: Check application port
+      ansible.builtin.command:
+        cmd: powershell.exe -NoProfile -Command "$connection = Get-NetTCPConnection -LocalPort {{ required_port }} -ErrorAction SilentlyContinue; if ($connection) { Write-Output 'Port {{ required_port }} is active' } else { Write-Output 'Port {{ required_port }} is not currently active' }"
+      register: port_status
+      changed_when: false
+      failed_when: false
+
+    - name: Verify documentation directory
+      ansible.builtin.command:
+        cmd: powershell.exe -NoProfile -Command "if (Test-Path '{{ project_root }}/docs') { Write-Output 'Documentation directory exists' } else { Write-Output 'Documentation directory not found' }"
+      register: documentation_directory
+      changed_when: false
+
+    - name: Display environment status
+      ansible.builtin.debug:
+        msg:
+          - "Project exists: {{ project_directory.stat.exists }}"
+          - "Docker: {{ docker_version.stdout }}"
+          - "Tomcat: {{ tomcat_directory.stdout }}"
+          - "Application port: {{ port_status.stdout }}"
+          - "Documentation: {{ documentation_directory.stdout }}"

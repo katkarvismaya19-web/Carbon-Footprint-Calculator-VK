@@ -1,5 +1,8 @@
-﻿# Ant build output
+# Ant build output
 build/
+
+# Maven build output
+tests/selenium/target/
 
 # IDE files
 .vscode/

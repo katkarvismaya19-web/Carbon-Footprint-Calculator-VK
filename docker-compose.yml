@@ -1,0 +1,11 @@
+﻿services:
+
+  carbon-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: carbon-footprint-calculator:1.0
+    container_name: carbon-footprint-calculator
+    ports:
+      - "8082:8080"
+    restart: unless-stopped

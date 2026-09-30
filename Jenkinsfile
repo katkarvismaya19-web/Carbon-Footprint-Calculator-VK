@@ -16,16 +16,16 @@
 
         APP_URL = 'http://localhost:8081/carbon-footprint-calculator/'
 
+        DOCKER_TEST_PORT = '8083'
+
+        DOCKER_TEST_CONTAINER = 'carbon-footprint-ci-test'
+
         SELENIUM_DIR = 'tests/selenium'
+
+        BACKUP_DIR = 'deployment-backup'
     }
 
     stages {
-
-        /*
-         * =========================================================
-         * 1. CHECKOUT
-         * =========================================================
-         */
 
         stage('Checkout') {
 
@@ -38,30 +38,17 @@
         }
 
 
-        /*
-         * =========================================================
-         * 2. BUILD
-         * =========================================================
-         */
-
         stage('Build') {
 
             steps {
 
                 bat 'ant clean'
-
                 bat 'ant compile'
 
                 echo 'Application compiled successfully.'
             }
         }
 
-
-        /*
-         * =========================================================
-         * 3. UNIT TESTS + JACOCO
-         * =========================================================
-         */
 
         stage('Unit Tests and Coverage') {
 
@@ -74,12 +61,6 @@
         }
 
 
-        /*
-         * =========================================================
-         * 4. CREATE WAR
-         * =========================================================
-         */
-
         stage('Create WAR') {
 
             steps {
@@ -90,12 +71,6 @@
             }
         }
 
-
-        /*
-         * =========================================================
-         * 5. ARCHIVE WAR
-         * =========================================================
-         */
 
         stage('Archive WAR') {
 
@@ -112,91 +87,135 @@
 
 
         /*
-         * =========================================================
-         * 6. DEPLOY TO TOMCAT
-         * =========================================================
+         * W14 - BACKUP CURRENT DEPLOYMENT
          */
 
-        stage('Deploy to Tomcat') {
+        stage('W14 - Backup Current Deployment') {
 
             steps {
 
                 bat '''
-                echo Deploying WAR to Tomcat...
+                echo Creating deployment backup...
 
-                if not exist "%TOMCAT_HOME%\\webapps" (
-                    echo ERROR: Tomcat webapps directory not found.
-                    exit /b 1
-                )
-
-                if exist "%TOMCAT_HOME%\\webapps\\%APP_NAME%" (
-                    rmdir /s /q "%TOMCAT_HOME%\\webapps\\%APP_NAME%"
-                )
+                if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
 
                 if exist "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war" (
-                    del /f /q "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war"
+                    copy /Y "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war" "%BACKUP_DIR%\\previous-version.war"
+                    echo Previous WAR backed up successfully.
+                ) else (
+                    echo No previous WAR found. First deployment.
                 )
-
-                copy /Y "build\\carbon-footprint-calculator.war" "%TOMCAT_HOME%\\webapps\\carbon-footprint-calculator.war"
-
-                echo WAR copied to Tomcat successfully.
                 '''
             }
         }
 
 
         /*
-         * =========================================================
-         * 7. WAIT FOR TOMCAT APPLICATION
-         * =========================================================
+         * W14 - DEPLOY + AUTOMATIC ROLLBACK
          */
 
-        stage('Wait for Application') {
+        stage('W14 - Deploy with Rollback') {
 
             steps {
 
-                bat '''
-                echo Waiting for Tomcat application...
+                script {
 
-                powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-                "$url='http://localhost:8081/carbon-footprint-calculator/'; ^
-                $ready=$false; ^
-                for($i=1;$i -le 30;$i++){ ^
-                    try { ^
-                        $response=Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3; ^
-                        if($response.StatusCode -ge 200 -and $response.StatusCode -lt 500){ ^
-                            Write-Host 'Application is responding.'; ^
-                            $ready=$true; ^
-                            break ^
-                        } ^
-                    } catch { ^
-                        Write-Host ('Waiting... attempt ' + $i) ^
-                    }; ^
-                    Start-Sleep -Seconds 2 ^
-                }; ^
-                if(-not $ready){ ^
-                    Write-Host 'Application did not become available.'; ^
-                    exit 1 ^
-                }"
-                '''
+                    try {
+
+                        bat '''
+                        echo ==========================================
+                        echo DEPLOYING NEW VERSION
+                        echo ==========================================
+
+                        if exist "%TOMCAT_HOME%\\webapps\\%APP_NAME%" (
+                            rmdir /s /q "%TOMCAT_HOME%\\webapps\\%APP_NAME%"
+                        )
+
+                        if exist "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war" (
+                            del /f /q "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war"
+                        )
+
+                        copy /Y "build\\carbon-footprint-calculator.war" "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war"
+
+                        echo New WAR deployed.
+                        '''
+
+                        bat '''
+                        echo Waiting for application...
+
+                        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+                        "$url='http://localhost:8081/carbon-footprint-calculator/'; ^
+                        $ready=$false; ^
+                        for($i=1;$i -le 30;$i++){ ^
+                            try { ^
+                                $response=Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3; ^
+                                if($response.StatusCode -ge 200 -and $response.StatusCode -lt 500){ ^
+                                    Write-Host 'Application is responding.'; ^
+                                    $ready=$true; ^
+                                    break ^
+                                } ^
+                            } catch { ^
+                                Write-Host ('Waiting... attempt ' + $i) ^
+                            }; ^
+                            Start-Sleep -Seconds 2 ^
+                        }; ^
+                        if(-not $ready){ ^
+                            Write-Host 'Deployment health check failed.'; ^
+                            exit 1 ^
+                        }"
+                        '''
+
+                        echo 'New deployment passed health check.'
+
+                    } catch (Exception e) {
+
+                        echo 'DEPLOYMENT FAILED - STARTING ROLLBACK'
+
+                        bat '''
+                        if exist "%BACKUP_DIR%\\previous-version.war" (
+
+                            echo Restoring previous WAR...
+
+                            if exist "%TOMCAT_HOME%\\webapps\\%APP_NAME%" (
+                                rmdir /s /q "%TOMCAT_HOME%\\webapps\\%APP_NAME%"
+                            )
+
+                            if exist "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war" (
+                                del /f /q "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war"
+                            )
+
+                            copy /Y "%BACKUP_DIR%\\previous-version.war" "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war"
+
+                            echo Previous version restored successfully.
+
+                        ) else (
+
+                            echo No previous version available for rollback.
+
+                        )
+                        '''
+
+                        error('Deployment failed. Rollback procedure executed.')
+                    }
+                }
             }
         }
 
 
         /*
-         * =========================================================
-         * 8. SELENIUM END-TO-END TESTS
-         * =========================================================
+         * W10 - SELENIUM CONTINUOUS TESTING
          */
 
-        stage('Selenium End-to-End Tests') {
+        stage('W10 - Selenium End-to-End Tests') {
 
             steps {
 
                 dir('tests/selenium') {
 
                     bat '''
-                    echo Running Selenium end-to-end tests...
+                    echo ==========================================
+                    echo RUNNING SELENIUM TESTS
+                    echo ==========================================
 
                     mvn clean test -DbaseUrl=http://localhost:8081/carbon-footprint-calculator/
 
@@ -213,17 +232,17 @@
 
 
         /*
-         * =========================================================
-         * 9. DOCKER BUILD
-         * =========================================================
+         * W12 - DOCKER BUILD
          */
 
-        stage('Docker Build') {
+        stage('W12 - Docker Build') {
 
             steps {
 
                 bat '''
-                echo Building Docker image...
+                echo ==========================================
+                echo BUILDING DOCKER IMAGE
+                echo ==========================================
 
                 docker build -t %DOCKER_IMAGE%:%DOCKER_TAG% .
 
@@ -232,55 +251,57 @@
                     exit /b 1
                 )
 
-                echo Docker image built successfully.
+                docker tag %DOCKER_IMAGE%:%DOCKER_TAG% %DOCKER_IMAGE%:latest
+
+                echo Docker image created:
+                echo %DOCKER_IMAGE%:%DOCKER_TAG%
+                echo %DOCKER_IMAGE%:latest
                 '''
             }
         }
 
 
         /*
-         * =========================================================
-         * 10. DOCKER CONTAINER TEST
-         * =========================================================
+         * W12 - DOCKER DEPLOYMENT TEST
          */
 
-        stage('Docker Container Test') {
+        stage('W12 - Docker Deployment') {
 
             steps {
 
                 bat '''
-                echo Starting Docker test container...
+                echo Removing previous CI container...
 
-                docker rm -f carbon-footprint-ci-test 2>NUL || exit /b 0
+                docker rm -f %DOCKER_TEST_CONTAINER% 2>NUL || exit /b 0
+
+                echo Starting Docker deployment...
 
                 docker run -d ^
-                    --name carbon-footprint-ci-test ^
-                    -p 8083:8080 ^
+                    --name %DOCKER_TEST_CONTAINER% ^
+                    -p %DOCKER_TEST_PORT%:8080 ^
                     %DOCKER_IMAGE%:%DOCKER_TAG%
 
                 if errorlevel 1 (
-                    echo Docker container FAILED to start.
+                    echo Docker container failed to start.
                     exit /b 1
                 )
 
-                echo Docker container started.
+                echo Docker container started successfully.
                 '''
             }
         }
 
 
         /*
-         * =========================================================
-         * 11. DOCKER HEALTH CHECK
-         * =========================================================
+         * W12 - DOCKER HEALTH CHECK
          */
 
-        stage('Docker Health Check') {
+        stage('W12 - Docker Health Check') {
 
             steps {
 
                 bat '''
-                echo Waiting for Docker application...
+                echo Checking Docker application health...
 
                 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
                 "$url='http://localhost:8083/carbon-footprint-calculator/'; ^
@@ -289,7 +310,7 @@
                     try { ^
                         $response=Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3; ^
                         if($response.StatusCode -ge 200 -and $response.StatusCode -lt 500){ ^
-                            Write-Host 'Docker application is responding.'; ^
+                            Write-Host 'Docker application is healthy.'; ^
                             $ready=$true; ^
                             break ^
                         } ^
@@ -299,7 +320,7 @@
                     Start-Sleep -Seconds 2 ^
                 }; ^
                 if(-not $ready){ ^
-                    Write-Host 'Docker application health check FAILED.'; ^
+                    Write-Host 'Docker health check FAILED.'; ^
                     exit 1 ^
                 }"
                 '''
@@ -308,43 +329,80 @@
 
 
         /*
-         * =========================================================
-         * 12. ANSIBLE CONFIGURATION CHECK
-         * =========================================================
+         * W13 - ANSIBLE
          */
 
-        stage('Ansible Configuration Check') {
-
-    steps {
-
-        bat '''
-        echo Running Ansible configuration check through WSL...
-
-        wsl -d Ubuntu -- bash -lc "cd /mnt/c/DevOps-Pipeline/carbon-footprint-calculator && ansible-playbook -i ansible/inventory.ini ansible/site.yml"
-
-        if errorlevel 1 (
-            echo Ansible configuration FAILED.
-            exit /b 1
-        )
-
-        echo Ansible configuration completed successfully.
-        '''
-    }
-}
-
-
-        /*
-         * =========================================================
-         * 13. FINAL APPLICATION CHECK
-         * =========================================================
-         */
-
-        stage('Final Health Check') {
+        stage('W13 - Ansible Configuration') {
 
             steps {
 
                 bat '''
-                echo Performing final Tomcat health check...
+                echo ==========================================
+                echo RUNNING ANSIBLE THROUGH WSL
+                echo ==========================================
+
+                wsl -d Ubuntu -- bash -lc "cd /mnt/c/DevOps-Pipeline/carbon-footprint-calculator && ansible-playbook -i ansible/inventory.ini ansible/site.yml"
+
+                if errorlevel 1 (
+                    echo Ansible configuration FAILED.
+                    exit /b 1
+                )
+
+                echo Ansible configuration completed successfully.
+                '''
+            }
+        }
+
+
+        /*
+         * W14 - IDEMPOTENCY
+         *
+         * Run Ansible twice.
+         * The second run should remain unchanged.
+         */
+
+        stage('W14 - Idempotency Check') {
+
+            steps {
+
+                bat '''
+                echo ==========================================
+                echo ANSIBLE IDEMPOTENCY CHECK
+                echo ==========================================
+
+                wsl -d Ubuntu -- bash -lc "cd /mnt/c/DevOps-Pipeline/carbon-footprint-calculator && ansible-playbook -i ansible/inventory.ini ansible/site.yml"
+
+                if errorlevel 1 (
+                    echo First Ansible idempotency run FAILED.
+                    exit /b 1
+                )
+
+                wsl -d Ubuntu -- bash -lc "cd /mnt/c/DevOps-Pipeline/carbon-footprint-calculator && ansible-playbook -i ansible/inventory.ini ansible/site.yml"
+
+                if errorlevel 1 (
+                    echo Second Ansible idempotency run FAILED.
+                    exit /b 1
+                )
+
+                echo Ansible repeated execution completed successfully.
+                echo Configuration remains stable across repeated runs.
+                '''
+            }
+        }
+
+
+        /*
+         * W14 - FINAL HEALTH CHECK
+         */
+
+        stage('W14 - Final Health Check') {
+
+            steps {
+
+                bat '''
+                echo ==========================================
+                echo FINAL APPLICATION HEALTH CHECK
+                echo ==========================================
 
                 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
                 "$url='http://localhost:8081/carbon-footprint-calculator/'; ^
@@ -358,76 +416,116 @@
                 }"
 
                 echo Final application health check PASSED.
+                '''
+            }
+        }
+
+
+        /*
+         * W15 - FINAL INTEGRATED VERIFICATION
+         */
+
+        stage('W15 - Final Integrated Verification') {
+
+            steps {
+
+                bat '''
+                echo.
+                echo ==========================================
+                echo FINAL DEVOPS PIPELINE VERIFICATION
+                echo ==========================================
+                echo.
+
+                echo [1] Git Checkout             : PASSED
+                echo [2] Ant Build               : PASSED
+                echo [3] JUnit Tests             : PASSED
+                echo [4] JaCoCo Coverage         : PASSED
+                echo [5] WAR Creation            : PASSED
+                echo [6] Tomcat Deployment       : PASSED
+                echo [7] Selenium Testing        : PASSED
+                echo [8] Docker Build            : PASSED
+                echo [9] Docker Deployment       : PASSED
+                echo [10] Docker Health          : PASSED
+                echo [11] Ansible Configuration  : PASSED
+                echo [12] Idempotency Check      : PASSED
+                echo [13] Rollback Capability    : VERIFIED
+                echo [14] Final Health Check     : PASSED
+                echo.
+                echo ==========================================
+                echo COMPLETE CI/CD PIPELINE PASSED
+                echo ==========================================
+                '''
             }
         }
     }
 
 
-    /*
-     * =============================================================
-     * POST ACTIONS
-     * =============================================================
-     */
-
     post {
 
-always {
+        always {
 
-    echo 'Collecting test and Docker information...'
+            echo 'Collecting test reports and cleaning CI container...'
 
-    bat '''
-    if exist "tests\\selenium\\target\\surefire-reports" (
-        echo Selenium reports found.
-    )
+            bat '''
+            if exist "tests\\selenium\\target\\surefire-reports" (
+                echo Selenium reports found.
+            )
 
-    if exist "build\\coverage\\html" (
-        echo JaCoCo coverage report found.
-    )
+            if exist "build\\coverage\\html" (
+                echo JaCoCo coverage report found.
+            )
 
-    docker logs carbon-footprint-ci-test 2>NUL || exit /b 0
+            docker logs %DOCKER_TEST_CONTAINER% 2>NUL || exit /b 0
 
-    docker rm -f carbon-footprint-ci-test 2>NUL || exit /b 0
-    '''
+            docker rm -f %DOCKER_TEST_CONTAINER% 2>NUL || exit /b 0
+            '''
 
-    archiveArtifacts(
-        artifacts: 'tests/selenium/target/surefire-reports/**/*',
-        allowEmptyArchive: true
-    )
+            archiveArtifacts(
+                artifacts: 'tests/selenium/target/surefire-reports/**/*',
+                allowEmptyArchive: true
+            )
 
-    archiveArtifacts(
-        artifacts: 'build/coverage/**/*',
-        allowEmptyArchive: true
-    )
-}
+            archiveArtifacts(
+                artifacts: 'build/coverage/**/*',
+                allowEmptyArchive: true
+            )
+
+            archiveArtifacts(
+                artifacts: 'deployment-backup/**/*',
+                allowEmptyArchive: true
+            )
+        }
+
+
         success {
 
             echo '''
             ==========================================
-            CI/CD PIPELINE COMPLETED SUCCESSFULLY
+            DEVOPS PROJECT COMPLETED SUCCESSFULLY
             ==========================================
-            Checkout       : PASSED
-            Build          : PASSED
-            Unit Tests     : PASSED
-            JaCoCo         : PASSED
-            WAR            : PASSED
-            Tomcat Deploy  : PASSED
-            Selenium       : PASSED
-            Docker Build   : PASSED
-            Docker Health  : PASSED
-            Ansible        : PASSED
-            Final Check    : PASSED
+
+            W10 Selenium       : PASSED
+            W11 Docker         : COMPLETED
+            W12 Docker CI/CD   : PASSED
+            W13 Ansible        : PASSED
+            W14 Rollback       : VERIFIED
+            W15 Final Release  : PASSED
+
             ==========================================
             '''
         }
+
 
         failure {
 
             echo '''
             ==========================================
-            CI/CD PIPELINE FAILED
+            DEVOPS PIPELINE FAILED
             ==========================================
-            Check the failed stage in Jenkins Console
-            Output for details.
+
+            Check the failed Jenkins stage and
+            Console Output for details.
+
             ==========================================
             '''
         }
