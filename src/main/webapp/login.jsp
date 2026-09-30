@@ -10,7 +10,7 @@
 
 <div class="container">
 
-    <h1>🛡️ Carbon Footprint Calculator</h1>
+    <h1>🛡️ Carbon Footprint Calculator - CI/CD Test</h1>
 
     <h2>Login</h2>
 
