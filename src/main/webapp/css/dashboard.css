@@ -1,5 +1,6 @@
 /* ============================================================
-   Carbon Footprint Calculator — login + dashboard
+   Carbon Footprint Calculator — dashboard
+   Forest + contour-map hero, activity colours throughout
    ============================================================ */
 
 :root {
@@ -62,7 +63,7 @@ body {
 h1, h2 { font-family: var(--display); }
 .muted { color: var(--muted); }
 
-/* ---------- App bar ---------- */
+/* ---------- Shell ---------- */
 
 .shell { min-height: 100vh; }
 
@@ -134,7 +135,7 @@ h1, h2 { font-family: var(--display); }
     font-weight: 500;
 }
 
-/* ---------- Hero ---------- */
+/* ---------- Hero: contour map ---------- */
 
 .hero {
     position: relative;
@@ -431,7 +432,7 @@ h1, h2 { font-family: var(--display); }
 }
 :root[data-theme="dark"] .tag { background: var(--subtle); color: var(--ink); }
 
-/* Chart bars rise once on load */
+/* One entrance moment: the hero total and chart rise once on load */
 @media (prefers-reduced-motion: no-preference) {
     .day-col { animation: rise .8s cubic-bezier(.2, .8, .2, 1) both; transform-origin: bottom; }
     @keyframes rise { from { transform: scaleY(0); } }

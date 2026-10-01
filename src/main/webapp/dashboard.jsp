@@ -1,4 +1,4 @@
-﻿<%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ page import="java.util.*" %>
 <%@ page import="java.math.BigDecimal" %>
 <%@ page import="java.math.RoundingMode" %>
@@ -24,7 +24,7 @@
         return out.toString();
     }
 
-    /* Activity -> colour key used by css/dashboard.css */
+    /* Activity -> colour key used by css/dashboard.css (c-*, s-*). */
     private static String key(String activity) {
         if (activity == null) return "other";
         switch (activity) {
@@ -248,55 +248,55 @@
 
         <!-- Records -->
         <section class="card table-card">
-            <div class="card-head">
-                <h2>My carbon records</h2>
-                <span class="muted"><%= records.size() %> <%= records.size() == 1 ? "entry" : "entries" %></span>
-            </div>
+                <div class="card-head">
+                    <h2>My carbon records</h2>
+                    <span class="muted"><%= records.size() %> <%= records.size() == 1 ? "entry" : "entries" %></span>
+                </div>
 
-            <% if (records.isEmpty()) { %>
-                <div class="empty">No records yet.</div>
-            <% } else { %>
-            <div class="table-wrap">
-                <table class="records">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Activity</th>
-                            <th class="num">Amount</th>
-                            <th class="num">Factor</th>
-                            <th class="num">Emission</th>
-                            <th><span class="sr-only">Actions</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <% for (CarbonRecord record : records) { %>
-                        <tr>
-                            <td class="date"><%= esc(record.getRecordDate()) %></td>
-                            <td>
-                                <span class="tag tag-<%= key(record.getActivityType()) %>">
-                                    <%= esc(record.getActivityType()) %>
-                                </span>
-                            </td>
-                            <td class="num"><%= esc(record.getActivityValue()) %> <span class="muted"><%= esc(record.getUnit()) %></span></td>
-                            <td class="num muted"><%= esc(record.getEmissionFactor()) %></td>
-                            <td class="num emission"><%= esc(record.getCarbonEmission()) %> <span class="muted">kg</span></td>
-                            <td class="num">
-                                <form method="post" action="<%= ctx %>/carbon"
-                                      onsubmit="return confirm('Delete this record?');">
-                                    <input type="hidden" name="action" value="delete">
-                                    <input type="hidden" name="recordId" value="<%= record.getRecordId() %>">
-                                    <button class="btn-delete" type="submit" aria-label="Delete record">
-                                        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2M6.5 6l.7 10h5.6l.7-10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    <% } %>
-                    </tbody>
-                </table>
-            </div>
-            <% } %>
-        </section>
+                <% if (records.isEmpty()) { %>
+                    <div class="empty">No records yet.</div>
+                <% } else { %>
+                <div class="table-wrap">
+                    <table class="records">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Activity</th>
+                                <th class="num">Amount</th>
+                                <th class="num">Factor</th>
+                                <th class="num">Emission</th>
+                                <th><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <% for (CarbonRecord record : records) { %>
+                            <tr>
+                                <td class="date"><%= esc(record.getRecordDate()) %></td>
+                                <td>
+                                    <span class="tag tag-<%= key(record.getActivityType()) %>">
+                                        <%= esc(record.getActivityType()) %>
+                                    </span>
+                                </td>
+                                <td class="num"><%= esc(record.getActivityValue()) %> <span class="muted"><%= esc(record.getUnit()) %></span></td>
+                                <td class="num muted"><%= esc(record.getEmissionFactor()) %></td>
+                                <td class="num emission"><%= esc(record.getCarbonEmission()) %> <span class="muted">kg</span></td>
+                                <td class="num">
+                                    <form method="post" action="<%= ctx %>/carbon"
+                                          onsubmit="return confirm('Delete this record?');">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="recordId" value="<%= record.getRecordId() %>">
+                                        <button class="btn-delete" type="submit" aria-label="Delete record">
+                                            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2M6.5 6l.7 10h5.6l.7-10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <% } %>
+                        </tbody>
+                    </table>
+                </div>
+                <% } %>
+            </section>
 
     </main>
 </div>
