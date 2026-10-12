@@ -1,32 +1,21 @@
+﻿
 pipeline {
-
     agent any
 
     environment {
-
         APP_NAME = 'carbon-footprint-calculator'
-
         DOCKER_IMAGE = 'carbon-footprint-calculator'
-
         DOCKER_TAG = "1.${BUILD_NUMBER}"
-
         TOMCAT_HOME = 'C:/apache-tomcat-11.0.24'
-
         TOMCAT_PORT = '8081'
-
         APP_URL = 'http://localhost:8081/carbon-footprint-calculator/'
-
         DOCKER_TEST_PORT = '8083'
-
         DOCKER_TEST_CONTAINER = 'carbon-footprint-ci-test'
-
         SELENIUM_DIR = 'tests/selenium'
-
         BACKUP_DIR = 'deployment-backup'
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
@@ -86,7 +75,6 @@ pipeline {
             steps {
                 script {
                     try {
-
                         bat '''
                         echo ==========================================
                         echo DEPLOYING NEW VERSION
@@ -102,6 +90,7 @@ pipeline {
 
                         copy /Y "build\\carbon-footprint-calculator.war" "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war"
 
+                        if errorlevel 1 exit /b 1
                         echo New WAR deployed.
                         '''
 
@@ -112,9 +101,7 @@ pipeline {
                         '''
 
                         echo 'New deployment passed health check.'
-
                     } catch (Exception e) {
-
                         echo 'DEPLOYMENT FAILED - STARTING ROLLBACK'
 
                         bat '''
@@ -130,7 +117,6 @@ pipeline {
                             )
 
                             copy /Y "%BACKUP_DIR%\\previous-version.war" "%TOMCAT_HOME%\\webapps\\%APP_NAME%.war"
-
                             echo Previous version restored successfully.
                         ) else (
                             echo No previous version available for rollback.
@@ -195,8 +181,6 @@ pipeline {
                 echo ==========================================
 
                 docker rm -f %DOCKER_TEST_CONTAINER% 2>NUL
-
-                echo Starting Docker deployment...
 
                 docker run -d ^
                     --name %DOCKER_TEST_CONTAINER% ^
@@ -315,9 +299,7 @@ pipeline {
     }
 
     post {
-
         always {
-
             echo 'Collecting test reports and cleaning CI container...'
 
             bat '''
@@ -330,9 +312,14 @@ pipeline {
             )
 
             docker logs %DOCKER_TEST_CONTAINER% 2>NUL
-
             docker rm -f %DOCKER_TEST_CONTAINER% 2>NUL
             '''
+
+            // Publish Selenium test results in Jenkins.
+            junit(
+                testResults: 'tests/selenium/target/surefire-reports/TEST-*.xml',
+                allowEmptyResults: true
+            )
 
             archiveArtifacts(
                 artifacts: 'tests/selenium/target/surefire-reports/**/*',
@@ -352,28 +339,28 @@ pipeline {
 
         success {
             echo '''
-            ==========================================
-            DEVOPS PROJECT COMPLETED SUCCESSFULLY
-            ==========================================
-            W10 Selenium       : PASSED
-            W11 Docker         : COMPLETED
-            W12 Docker CI/CD   : PASSED
-            W13 Ansible        : PASSED
-            W14 Rollback       : VERIFIED
-            W15 Final Release  : PASSED
-            ==========================================
-            '''
+==========================================
+DEVOPS PROJECT COMPLETED SUCCESSFULLY
+==========================================
+W10 Selenium       : PASSED
+W11 Docker         : COMPLETED
+W12 Docker CI/CD   : PASSED
+W13 Ansible        : PASSED
+W14 Rollback       : VERIFIED
+W15 Final Release  : PASSED
+==========================================
+'''
         }
 
         failure {
             echo '''
-            ==========================================
-            DEVOPS PIPELINE FAILED
-            ==========================================
-            Check the failed Jenkins stage and
-            Console Output for details.
-            ==========================================
-            '''
+==========================================
+DEVOPS PIPELINE FAILED
+==========================================
+Check the failed Jenkins stage and
+Console Output for details.
+==========================================
+'''
         }
     }
 }
